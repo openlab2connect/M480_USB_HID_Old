@@ -9,6 +9,7 @@
 #include <stdio.h>
 #include "NuMicro.h"
 #include "hid_transfer.h"
+#include "spi_cap.h"
 
 #define CRYSTAL_LESS        1
 #define TRIM_INIT           (SYS_BASE+0x10C)
@@ -63,6 +64,12 @@ void SYS_Init(void)
     /* Enable IP clock */
     CLK_EnableModuleClock(UART0_MODULE);
 
+    /* Select PCLK0 as the clock source of SPI1 */
+    CLK_SetModuleClock(SPI1_MODULE, CLK_CLKSEL2_SPI1SEL_PCLK0, MODULE_NoMsk);
+
+    /* Enable SPI1 peripheral clock */
+    CLK_EnableModuleClock(SPI1_MODULE);
+
     /* Set PA.12 ~ PA.14 to input mode */
     PA->MODE &= ~(GPIO_MODE_MODE13_Msk | GPIO_MODE_MODE14_Msk);
     SYS->GPA_MFPH &= ~(SYS_GPA_MFPH_PA13MFP_Msk|SYS_GPA_MFPH_PA14MFP_Msk|SYS_GPA_MFPH_PA15MFP_Msk);
@@ -72,6 +79,8 @@ void SYS_Init(void)
     SYS->GPB_MFPH &= ~(SYS_GPB_MFPH_PB12MFP_Msk | SYS_GPB_MFPH_PB13MFP_Msk);
     SYS->GPB_MFPH |= (SYS_GPB_MFPH_PB12MFP_UART0_RXD | SYS_GPB_MFPH_PB13MFP_UART0_TXD);
 
+    /* Setup SPI1 multi-function pins */
+    SYS->GPB_MFPL |= SYS_GPB_MFPL_PB4MFP_SPI1_MOSI | SYS_GPB_MFPL_PB5MFP_SPI1_MISO | SYS_GPB_MFPL_PB3MFP_SPI1_CLK | SYS_GPB_MFPL_PB2MFP_SPI1_SS;
 }
 
 
@@ -91,8 +100,6 @@ int32_t main (void)
     SYS_Init();
     UART0_Init();
 
-    printf("NuMicro USB HID Transfer Sample\n");
-
     USBD_Open(&gsInfo, HID_ClassRequest, NULL);
 
     /* Endpoint configuration */
@@ -111,6 +118,15 @@ int32_t main (void)
     }
 
     NVIC_EnableIRQ(USBD_IRQn);
+
+    printf("USBD HID ready\n");
+
+    SPI_Init();
+    CAP_Reset();
+    CAP_Initialization();
+    CAP_Interrupt();
+
+    printf("CAP SPI1 ready\n");
 
     while(1)
     {
@@ -147,6 +163,9 @@ int32_t main (void)
             }
         }
     }
+
+    //Never go to here
+    SPI_Close(SPI1);
 }
 
 

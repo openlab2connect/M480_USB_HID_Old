@@ -107,7 +107,7 @@ void USBD_IRQHandler(void)
             /* Clear event flag */
             USBD_CLR_INT_FLAG(USBD_INTSTS_EP2);
             // Interrupt IN
-            EP2_Handler();
+            //EP2_Handler();
         }
 
         if (u32IntSts & USBD_INTSTS_EP3)
@@ -146,7 +146,7 @@ void USBD_IRQHandler(void)
 
 void EP2_Handler(void)  /* Interrupt IN handler */
 {
-    HID_SetInReport();
+    //HID_SetInReport();
 }
 
 void EP3_Handler(void)  /* Interrupt OUT handler */
@@ -302,9 +302,19 @@ typedef struct __attribute__((__packed__))
     uint32_t u32Checksum;
 }
 CMD_T;
+
+typedef struct __attribute__((__packed__))
+{
+    uint8_t cmd;
+    uint8_t showText;
+    uint8_t sizeOfText;
+    uint8_t textArray[32];
+}
+CMD_TEXT;
 #endif
 
 CMD_T gCmd;
+CMD_TEXT gCmdText;
 
 static uint8_t  g_u8PageBuff[PAGE_SIZE] = {0};    /* Page buffer to upload/download through HID report */
 static uint32_t g_u32BytesInPageBuf = 0;          /* The bytes of data in g_u8PageBuff */
@@ -421,6 +431,30 @@ uint32_t CalCheckSum(uint8_t *buf, uint32_t size)
 
 }
 
+int32_t ProcessCommandTransferred(uint8_t *pu8Buffer, uint32_t u32BufferLen)
+{
+    USBD_MemCopy((uint8_t *)&gCmdText, pu8Buffer, u32BufferLen);
+    printf("USB EP out length %d\n", u32BufferLen);
+    printf("cmd %#x showText %d\n", gCmdText.cmd, gCmdText.showText);
+
+    switch (gCmdText.cmd) {
+        case 0xab:
+          break;
+        case 0xcd:
+          break;
+        case 0xef:
+          break;
+        default:
+          break;
+    }
+
+    if (gCmdText.showText) {
+      printf("sizeOfText %d bytes\n", gCmdText.sizeOfText);
+      printf("text [%s]\n", gCmdText.textArray);
+    }
+
+    return 0;
+}
 
 int32_t ProcessCommand(uint8_t *pu8Buffer, uint32_t u32BufferLen)
 {
@@ -474,111 +508,71 @@ int32_t ProcessCommand(uint8_t *pu8Buffer, uint32_t u32BufferLen)
 
 void HID_GetOutReport(uint8_t *pu8EpBuf, uint32_t u32Size)
 {
-    uint8_t  u8Cmd;
-    uint32_t u32StartPage;
-    uint32_t u32Pages;
-    uint32_t u32PageCnt;
-
-    /* Get command information */
-    u8Cmd        = gCmd.u8Cmd;
-    u32StartPage = gCmd.u32Arg1;
-    u32Pages     = gCmd.u32Arg2;
-    u32PageCnt   = gCmd.u32Signature; /* The signature word is used to count pages */
-
-
-    /* Check if it is in the data phase of write command */
-    if((u8Cmd == HID_CMD_WRITE) &&  (u32PageCnt < u32Pages))
-    {
-        /* Process the data phase of write command */
-
-        /* Get data from HID OUT */
-        USBD_MemCopy(&g_u8PageBuff[g_u32BytesInPageBuf], pu8EpBuf, EP3_MAX_PKT_SIZE);
-        g_u32BytesInPageBuf += EP3_MAX_PKT_SIZE;
-
-        /* The HOST must make sure the data is PAGE_SIZE alignment */
-        if(g_u32BytesInPageBuf >= PAGE_SIZE)
-        {
-            printf("Writing page %d\n", u32StartPage + u32PageCnt);
-            /* TODO: We should program received data to storage here */
-            memcpy(g_u8TestPages + u32PageCnt * PAGE_SIZE, g_u8PageBuff, sizeof(g_u8PageBuff));
-            u32PageCnt++;
-
-            /* Write command complete! */
-            if(u32PageCnt >= u32Pages)
-            {
-                u8Cmd = HID_CMD_NONE;
-
-                printf("Write command complete.\n");
-            }
-
-            g_u32BytesInPageBuf = 0;
-
-        }
-
-        /* Update command status */
-        gCmd.u8Cmd        = u8Cmd;
-        gCmd.u32Signature = u32PageCnt;
-    }
-    else
-    {
-        /* Check and process the command packet */
-        if(ProcessCommand(pu8EpBuf, u32Size))
-        {
-            printf("Unknown HID command!\n");
-        }
-    }
+    /* Check and process the command packet */
+    ProcessCommandTransferred(pu8EpBuf, u32Size);
 }
 
-void HID_SetInReport(void)
+// void HID_SetInReport(void)
+// {
+//     uint32_t u32StartPage;
+//     uint32_t u32TotalPages;
+//     uint32_t u32PageCnt;
+//     uint8_t *ptr;
+//     uint8_t u8Cmd;
+
+//     u8Cmd        = gCmd.u8Cmd;
+//     u32StartPage = gCmd.u32Arg1;
+//     u32TotalPages= gCmd.u32Arg2;
+//     u32PageCnt   = gCmd.u32Signature;
+
+//     /* Check if it is in data phase of read command */
+//     if(u8Cmd == HID_CMD_READ)
+//     {
+//         /* Process the data phase of read command */
+//         if((u32PageCnt >= u32TotalPages) && (g_u32BytesInPageBuf == 0))
+//         {
+//             /* The data transfer is complete. */
+//             u8Cmd = HID_CMD_NONE;
+//             printf("Read command complete!\n");
+//         }
+//         else
+//         {
+//             if(g_u32BytesInPageBuf == 0)
+//             {
+//                 /* The previous page has sent out. Read new page to page buffer */
+//                  TODO: We should update new page data here. (0xFF is used in this sample code) 
+//                 printf("Reading page %d\n", u32StartPage + u32PageCnt);
+//                 memcpy(g_u8PageBuff, g_u8TestPages + u32PageCnt * PAGE_SIZE, sizeof(g_u8PageBuff));
+
+//                 g_u32BytesInPageBuf = PAGE_SIZE;
+
+//                 /* Update the page counter */
+//                 u32PageCnt++;
+//             }
+
+//             /* Prepare the data for next HID IN transfer */
+//             ptr = (uint8_t *)(USBD_BUF_BASE + USBD_GET_EP_BUF_ADDR(EP2));
+//             USBD_MemCopy(ptr, (void *)&g_u8PageBuff[PAGE_SIZE - g_u32BytesInPageBuf], EP2_MAX_PKT_SIZE);
+//             USBD_SET_PAYLOAD_LEN(EP2, EP2_MAX_PKT_SIZE);
+//             g_u32BytesInPageBuf -= EP2_MAX_PKT_SIZE;
+//         }
+//     }
+
+//     gCmd.u8Cmd        = u8Cmd;
+//     gCmd.u32Signature = u32PageCnt;
+// }
+
+// TODO: Device response commands
+void HID_SetInReport(uint8_t *report, size_t sizeOfByte)
 {
-    uint32_t u32StartPage;
-    uint32_t u32TotalPages;
-    uint32_t u32PageCnt;
+    // uint32_t i;
     uint8_t *ptr;
-    uint8_t u8Cmd;
+    uint8_t resp[64] = {0};
 
-    u8Cmd        = gCmd.u8Cmd;
-    u32StartPage = gCmd.u32Arg1;
-    u32TotalPages= gCmd.u32Arg2;
-    u32PageCnt   = gCmd.u32Signature;
+    memcpy(&resp[0], report, sizeOfByte);
 
-    /* Check if it is in data phase of read command */
-    if(u8Cmd == HID_CMD_READ)
-    {
-        /* Process the data phase of read command */
-        if((u32PageCnt >= u32TotalPages) && (g_u32BytesInPageBuf == 0))
-        {
-            /* The data transfer is complete. */
-            u8Cmd = HID_CMD_NONE;
-            printf("Read command complete!\n");
-        }
-        else
-        {
-            if(g_u32BytesInPageBuf == 0)
-            {
-                /* The previous page has sent out. Read new page to page buffer */
-                /* TODO: We should update new page data here. (0xFF is used in this sample code) */
-                printf("Reading page %d\n", u32StartPage + u32PageCnt);
-                memcpy(g_u8PageBuff, g_u8TestPages + u32PageCnt * PAGE_SIZE, sizeof(g_u8PageBuff));
-
-                g_u32BytesInPageBuf = PAGE_SIZE;
-
-                /* Update the page counter */
-                u32PageCnt++;
-            }
-
-            /* Prepare the data for next HID IN transfer */
-            ptr = (uint8_t *)(USBD_BUF_BASE + USBD_GET_EP_BUF_ADDR(EP2));
-            USBD_MemCopy(ptr, (void *)&g_u8PageBuff[PAGE_SIZE - g_u32BytesInPageBuf], EP2_MAX_PKT_SIZE);
-            USBD_SET_PAYLOAD_LEN(EP2, EP2_MAX_PKT_SIZE);
-            g_u32BytesInPageBuf -= EP2_MAX_PKT_SIZE;
-        }
-    }
-
-    gCmd.u8Cmd        = u8Cmd;
-    gCmd.u32Signature = u32PageCnt;
-
+    /* Prepare the data for next HID IN transfer */
+    ptr = (uint8_t *)(USBD_BUF_BASE + USBD_GET_EP_BUF_ADDR(EP2));
+    USBD_MemCopy(ptr, (void *)&resp[0], sizeof(resp));
+    USBD_SET_PAYLOAD_LEN(EP2, sizeof(resp));
 }
-
-
-
