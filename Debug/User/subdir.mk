@@ -6,17 +6,20 @@
 C_SRCS += \
 ../User/descriptors.c \
 ../User/hid_transfer.c \
-../User/main.c 
+../User/main.c \
+../User/spi_cap.c 
 
 OBJS += \
 ./User/descriptors.o \
 ./User/hid_transfer.o \
-./User/main.o 
+./User/main.o \
+./User/spi_cap.o 
 
 C_DEPS += \
 ./User/descriptors.d \
 ./User/hid_transfer.d \
-./User/main.d 
+./User/main.d \
+./User/spi_cap.d 
 
 
 # Each subdirectory must supply rules for building sources it contributes
