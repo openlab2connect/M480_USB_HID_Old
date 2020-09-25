@@ -433,6 +433,7 @@ uint32_t CalCheckSum(uint8_t *buf, uint32_t size)
 
 int32_t ProcessCommandTransferred(uint8_t *pu8Buffer, uint32_t u32BufferLen)
 {
+    char outText[32] = {0};
     USBD_MemCopy((uint8_t *)&gCmdText, pu8Buffer, u32BufferLen);
     printf("USB EP out length %d\n", u32BufferLen);
     printf("cmd %#x showText %d\n", gCmdText.cmd, gCmdText.showText);
@@ -448,9 +449,12 @@ int32_t ProcessCommandTransferred(uint8_t *pu8Buffer, uint32_t u32BufferLen)
           break;
     }
 
-    if (gCmdText.showText) {
+    if (gCmdText.showText && gCmdText.sizeOfText <= 31) {
       printf("sizeOfText %d bytes\n", gCmdText.sizeOfText);
-      printf("text [%s]\n", gCmdText.textArray);
+      //Copy 32 bytes char to string
+      memcpy(&outText[0], &gCmdText.textArray[0], gCmdText.sizeOfText);
+      outText[gCmdText.sizeOfText] = '\0';
+      printf("text [%s]\n", outText);
     }
 
     return 0;
